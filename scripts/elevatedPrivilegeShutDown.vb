@@ -1,4 +1,3 @@
-Attribute VB_Name = "ElevatedPrivilegeShutDown"
 '////////////////////////////////////////////////////////////////////////////////////////
 '// EDUCATIONAL SECURITY DEMONSTRATION
 '// Privilege Escalation and System Shutdown from CAD API Context
