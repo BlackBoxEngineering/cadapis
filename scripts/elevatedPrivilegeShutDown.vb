@@ -45,7 +45,7 @@ Public Const EWX_REBOOT = 2
 '// low-level system functions to perform privileged operations
 '//
 
-'// 64-bit compatibility: Use conditional compilation for VBA7 (Office 2010+)
+'// 64-bit compatibility: Use conditional compilation for VBA7
 #If VBA7 Then
     '// 64-bit compatible declarations using PtrSafe and LongPtr
     Public Declare PtrSafe Function ExitWindowsEx Lib "user32" (ByVal dwOptions As Long, ByVal dwReserved As Long) As Long
