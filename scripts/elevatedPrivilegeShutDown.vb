@@ -46,56 +46,22 @@ Public Const EWX_REBOOT = 2
 '// low-level system functions to perform privileged operations
 '//
 
-'// USER32.DLL - User Interface and Window Management
-'// ExitWindowsEx: Forces system shutdown/restart with specified options
-'// Parameters:
-'//   dwOptions: Shutdown type (EWX_SHUTDOWN=1, EWX_FORCE=4, EWX_REBOOT=2)
-'//   dwReserved: Reserved parameter (typically &HFFFF)
-'// Returns: Non-zero if successful, zero if failed
-'// Security Impact: Can forcibly terminate all processes and shut down system
-Public Declare Function ExitWindowsEx Lib "user32" (ByVal dwOptions As Long, ByVal dwReserved As Long) As Long
-
-'// KERNEL32.DLL - Core Windows System Functions
-'// GetCurrentProcess: Returns a handle to the current process
-'// Parameters: None
-'// Returns: Handle to current process (always returns -1 as pseudo-handle)
-'// Security Impact: Provides access to current process for token manipulation
-Public Declare Function GetCurrentProcess Lib "kernel32" () As Long
-
-'// ADVAPI32.DLL - Advanced Windows API (Security Functions)
-'// OpenProcessToken: Opens the access token associated with a process
-'// Parameters:
-'//   ProcessHandle: Handle to process whose token is being opened
-'//   DesiredAccess: Access rights requested (TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY)
-'//   TokenHandle: Receives handle to the opened access token
-'// Returns: Non-zero if successful
-'// Security Impact: Critical step - gains access to process security token
-Public Declare Function OpenProcessToken Lib "advapi32" (ByVal ProcessHandle As Long, ByVal DesiredAccess As Long, TokenHandle As Long) As Long
-
-'// ADVAPI32.DLL - Security API
-'// LookupPrivilegeValue: Retrieves the LUID for a specified privilege name
-'// Parameters:
-'//   lpSystemName: System name (empty string "" for local system)
-'//   lpName: Privilege name ("SeShutdownPrivilege" for shutdown rights)
-'//   lpLuid: Receives the LUID (Locally Unique Identifier) for the privilege
-'// Returns: Non-zero if successful
-'// Security Impact: Identifies the specific privilege we want to enable
-'// Alias "LookupPrivilegeValueA": Uses ANSI string version of the function
-Public Declare Function LookupPrivilegeValue Lib "advapi32" Alias "LookupPrivilegeValueA" (ByVal lpSystemName As String, ByVal lpName As String, lpLuid As LUID) As Long
-
-'// ADVAPI32.DLL - Security API (Most Critical Function)
-'// AdjustTokenPrivileges: Enables or disables privileges in an access token
-'// Parameters:
-'//   TokenHandle: Handle to access token containing privileges to modify
-'//   DisableAllPrivileges: FALSE to modify specific privileges
-'//   NewState: TOKEN_PRIVILEGES structure specifying privileges to modify
-'//   BufferLength: Size of PreviousState buffer
-'//   PreviousState: Receives previous state of modified privileges
-'//   ReturnLength: Receives actual size of previous state info
-'// Returns: Non-zero if successful
-'// Security Impact: THE PRIVILEGE ESCALATION - actually grants shutdown rights
-'// This is where the macro "steals" elevated privileges from the system
-Public Declare Function AdjustTokenPrivileges Lib "advapi32" (ByVal TokenHandle As Long, ByVal DisableAllPrivileges As Long, NewState As TOKEN_PRIVILEGES, ByVal BufferLength As Long, PreviousState As TOKEN_PRIVILEGES, ReturnLength As Long) As Long
+'// 64-bit compatibility: Use conditional compilation for VBA7 (Office 2010+)
+#If VBA7 Then
+    '// 64-bit compatible declarations using PtrSafe and LongPtr
+    Public Declare PtrSafe Function ExitWindowsEx Lib "user32" (ByVal dwOptions As Long, ByVal dwReserved As Long) As Long
+    Public Declare PtrSafe Function GetCurrentProcess Lib "kernel32" () As LongPtr
+    Public Declare PtrSafe Function OpenProcessToken Lib "advapi32" (ByVal ProcessHandle As LongPtr, ByVal DesiredAccess As Long, TokenHandle As LongPtr) As Long
+    Public Declare PtrSafe Function LookupPrivilegeValue Lib "advapi32" Alias "LookupPrivilegeValueA" (ByVal lpSystemName As String, ByVal lpName As String, lpLuid As LUID) As Long
+    Public Declare PtrSafe Function AdjustTokenPrivileges Lib "advapi32" (ByVal TokenHandle As LongPtr, ByVal DisableAllPrivileges As Long, NewState As TOKEN_PRIVILEGES, ByVal BufferLength As Long, PreviousState As TOKEN_PRIVILEGES, ReturnLength As Long) As Long
+#Else
+    '// Legacy 32-bit declarations for older Office versions
+    Public Declare Function ExitWindowsEx Lib "user32" (ByVal dwOptions As Long, ByVal dwReserved As Long) As Long
+    Public Declare Function GetCurrentProcess Lib "kernel32" () As Long
+    Public Declare Function OpenProcessToken Lib "advapi32" (ByVal ProcessHandle As Long, ByVal DesiredAccess As Long, TokenHandle As Long) As Long
+    Public Declare Function LookupPrivilegeValue Lib "advapi32" Alias "LookupPrivilegeValueA" (ByVal lpSystemName As String, ByVal lpName As String, lpLuid As LUID) As Long
+    Public Declare Function AdjustTokenPrivileges Lib "advapi32" (ByVal TokenHandle As Long, ByVal DisableAllPrivileges As Long, NewState As TOKEN_PRIVILEGES, ByVal BufferLength As Long, PreviousState As TOKEN_PRIVILEGES, ReturnLength As Long) As Long
+#End If
 
 '////////////////////////////////////////////////////////////////////////////////////////
 '// SECURITY ANALYSIS OF API CHAIN:
@@ -144,9 +110,14 @@ Private Function AcquireShutdownPrivileges() As Boolean
     Const TOKEN_QUERY = &H8
     Const SE_PRIVILEGE_ENABLED = &H2
     
-    ' Variables for privilege manipulation
-    Dim hdlProcessHandle As Long
-    Dim hdlTokenHandle As Long
+    ' Variables for privilege manipulation (64-bit compatible)
+    #If VBA7 Then
+        Dim hdlProcessHandle As LongPtr
+        Dim hdlTokenHandle As LongPtr
+    #Else
+        Dim hdlProcessHandle As Long
+        Dim hdlTokenHandle As Long
+    #End If
     Dim tmpLuid As LUID
     Dim tkp As TOKEN_PRIVILEGES
     Dim tkpNewButIgnored As TOKEN_PRIVILEGES
